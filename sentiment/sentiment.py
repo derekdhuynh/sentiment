@@ -1,11 +1,15 @@
-import click
-import sys
+#!/usr/bin/env python3
+# coding: utf-8
+"""
+
+A simple command line tool that predicts the sentiment of a given
+passage of text. Currently only supports a shell-like interface of
+taking user input and returning the results.
+
+"""
 import os
 import warnings
-
-from sklearn.pipeline import Pipeline
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB, ComplementNB
+import click
 
 from joblib import load
 
@@ -20,7 +24,9 @@ def sentiment():
     A probability to each class will also be returned.
 
     """
+
     models_path = os.environ['HOME'] + '/programming/sentiment_naive/models/cnb_bow.joblib'
+
     intro = [
         'Welcome to SENTIMENT ANALYZER!',
         'Please input any sentence/passage for analysis.',
@@ -30,6 +36,7 @@ def sentiment():
         'q - terminate the program',
         '',
         ]
+
     model_name = 'Complement Naive Bayes (bag of words)'
     click.echo('\n'.join(intro))
 
@@ -43,14 +50,30 @@ def sentiment():
 
     while True:
         inp = click.prompt('')
-
         if inp == 'q':
             return
-
         get_results(clf, inp)
 
 
 def get_results(clf, inp):
+    """
+
+    Compute metrics and get result for prediction
+    given a corpus. These currently include:
+        - Sentiment (negative, neutral, positive)
+        - Probability for each class
+
+    Params
+    ------
+
+    clf - sklearn.pipeline Pipeline.
+        A pipeline that should contain an transformer
+        that can handle raw corpora as well as an estimator.
+
+    inp - string.
+        A string of text passed to the model.
+
+    """
     res = ['Negative', 'Neutral', 'Positive']
     pred = clf.predict([inp]).astype(int)[0]
     prob = clf.predict_proba([inp]).ravel()
@@ -59,8 +82,8 @@ def get_results(clf, inp):
     click.echo('-------')
     click.echo('This passage is: ' + res[pred] + '!\n')
     probabilities = [
-            f'Probability of being Negative: {negative}',
-            f'Probability of being Neutral: {neutral}',
-            f'Probability of being Positive: {positive}',
-            ]
+        f'Probability of being Negative: {negative}',
+        f'Probability of being Neutral: {neutral}',
+        f'Probability of being Positive: {positive}',
+    ]
     click.echo('\n'.join(probabilities))

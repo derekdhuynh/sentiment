@@ -1,6 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # coding: utf-8
+"""
 
+Preprocessing data and training machine learning models for
+sentiment analysis.
+
+"""
 import os
 
 import json
@@ -17,17 +22,14 @@ from sklearn.metrics import balanced_accuracy_score
 
 from joblib import parallel_backend, Parallel, delayed
 
-PATH = './data/'
+PATH = '../data/'
 
 # Storing paths of datasets in dictionary for convenience
 DATA = {
     'fashion': PATH  + 'AMAZON_FASHION_5.json.gz',
     'movies': PATH + 'Movies_and_TV_5.json.gz',
-    'dictionary': PATH + 'dictionary.json',
-    'words': PATH + 'words.txt',
-    'cleaned': PATH + 'cleaned_amazon_reviews.json',
-    'cleaned_fashion': PATH + 'cleaned_amazon_fashion_5.json',
-    'amazon_data': PATH + 'amazon_reviews.hdf5'
+    'cleaned_fashion': PATH + 'fashion_reviews.hdf5',
+    'cleaned_movies': PATH + 'movies_reviews.hdf5'
 }
 
 def store_hdf5(file, dset_name, arr=None, readfile=None):
@@ -75,7 +77,8 @@ def store_hdf5(file, dset_name, arr=None, readfile=None):
         if arr:
             arr = np.asarray(arr)
             persist.create_dataset(dset_name, data=arr)
-            return
+
+            return f'File written at {os.path.join(os.getcwd(), file)}'
 
         if readfile:
             with gzip.open(readfile, 'r') as f:
@@ -106,9 +109,9 @@ def store_hdf5(file, dset_name, arr=None, readfile=None):
                 for ind, review in enumerate(f):
                     review = json.loads(review)
 
+                    # Some entries don't contain review text
                     if 'reviewText' not in review:
                         continue
-
                     rating = np.asarray(review['overall']).astype(np.float)
                     corpus = np.asarray(review['reviewText'])
                     persist[ratings_dset][ind] = rating
@@ -118,13 +121,30 @@ def store_hdf5(file, dset_name, arr=None, readfile=None):
 
 def _make_array(file):
     """
+    DEPRECATE
+
     Creating feature vectors of ratings
     annd review text from cleaned json files.
-    Saving the arrays in an hdf5 file.
+    Returning a two column ndarray.
+
+    Params
+    ------
+
+    file: string.
+        Path to json file.
+
+
+    Returns
+    -------
+
+    rec: ndarray, shape(scores/review_text, 2)
+        2 column matrix containing review text and
+        the corresponding ratings.
 
     """
     scores = []
     review_text = []
+
     with gzip.open(file) as f:
         for review in f:
             review = json.loads(review)
@@ -138,9 +158,31 @@ def _make_array(file):
     scores = np.asarray(scores).astype(np.float).reshape(-1, 1)
     review_text = np.asarray(review_text).reshape(-1, 1)
 
-    return np.core.records.fromarrays([scores, review_text], names='ratings,review_text')
+    # A records array to accomodate for different types
+    rec = np.core.records.fromarrays([scores, review_text], names='ratings,review_text')
+
+    return rec
 
 def categorize_arr(arr):
+    """
+
+    Transforms a given array for review scores
+    from 0-5 and categorizes them accordingly.
+    0 and 1 corresponds to 0, or negative, 3
+    corresponds to 1 or neutral, 4 and 5 corresponds
+    to 2 or positive.
+
+    Params
+    ------
+
+    arr: array-like, ints or floats from 0-5
+
+    Returns
+    -------
+
+    arr: array-like, ints from 0-2
+
+    """
     arr = np.asarray(arr)
 
     # Conditions to categorize reviews
@@ -159,6 +201,7 @@ def categorize_arr(arr):
 def train_model(
         estimators, file, validate=False, folds=5, test_size=0.2, start=None, end=None):
     """
+
     Training sentiment analysis model using
     given estimators and a file containing
     the dataset. Also performs rudimentary
@@ -216,17 +259,23 @@ def train_model(
         ratings = f[keys[0]]
         corpus = f[keys[1]]
         clf = Pipeline(estimators)
+
+        # Create transformer for consistency
         categorize = FunctionTransformer(categorize_arr)
 
         if validate is False:
+
+            # Splitting dataset into train and test
             X_train, X_test, y_train, y_test = train_test_split(
                 corpus[start: end].ravel(),
                 categorize.transform(ratings[start: end].ravel()),
                 test_size=test_size,
                 random_state=42
             )
+
             with parallel_backend('threading', n_jobs=-1):
                 Parallel()(delayed(clf.fit)(X_train, y_train) for i in range(1))
+
             # Evaluating metrics
             y_pred = clf.predict(X_test)
             score = clf.score(X_test, y_test)
@@ -243,6 +292,3 @@ def train_model(
             return score
 
         return 'Something went wrong'
-
-if __name__ == '__main__':
-    pass
