@@ -10,6 +10,7 @@ taking user input and returning the results.
 import os
 import warnings
 import click
+from string import whitespace
 
 from joblib import load
 
@@ -49,7 +50,7 @@ def sentiment():
 
     while True:
         inp = click.prompt('')
-        if inp == 'q':
+        if inp.strip(whitespace) == 'q':
             return
         get_results(clf, inp)
 
