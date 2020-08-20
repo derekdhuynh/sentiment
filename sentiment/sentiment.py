@@ -13,7 +13,6 @@ import click
 
 from joblib import load
 
-
 @click.command()
 def sentiment():
     """
