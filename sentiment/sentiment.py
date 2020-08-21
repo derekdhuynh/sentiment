@@ -36,8 +36,12 @@ from joblib import load
     '--target',
     '-t',
     'target',
-    default='None',
+    nargs=0,
     help='a string of text for immediate analysis.'
+)
+@click.argument(
+    'target',
+    nargs=-1,
 )
 @click.option(
     '--file',
@@ -73,7 +77,8 @@ def sentiment(model, target, file):
 
     # Simply evaluate sentiment and write to stdout
     # If target string is given.
-    if target != 'None':
+    if target != ():
+        target = ' '.join(list(target))
         clf = load_model(models[model])
         results = get_results(clf, target)
         click.echo(':' + target)
