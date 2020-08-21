@@ -1,1 +1,1 @@
-#Sentiment: A Naive Bayes-Based Sentiment Analysis CLI Tool
+# Sentiment: A Naive Bayes-Based Sentiment Analysis CLI Tool
