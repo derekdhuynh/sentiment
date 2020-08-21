@@ -8,14 +8,32 @@ taking user input and returning the results.
 
 """
 import os
+import subprocess
 import warnings
-import click
+
 from string import whitespace
+
+import click
 
 from joblib import load
 
+
 @click.command()
-def sentiment():
+@click.option(
+    '--model',
+    '-m',
+    'model',
+    default=2,
+    help='int from 0-3 specifiying the model to be loaded. DEFAULT: 2'
+)
+@click.option(
+    '--target',
+    '-t',
+    'target',
+    default='None',
+    help='a string of text for immediate analysis.'
+)
+def sentiment(model, target):
     """
 
     Analyzes the sentiment of a given document of text.
@@ -25,34 +43,50 @@ def sentiment():
 
     """
 
-    models_path = os.environ['HOME'] + '/programming/sentiment_naive/models/cnb_bow.joblib'
+    cols = subprocess.run(['tput', 'cols'], text=True, capture_output=True, check=True)
+    cols = int(cols.stdout.strip(whitespace))
+
+    models_path = '../models/'
+    models = sorted(models_path + mod for mod in os.listdir(models_path))
+
+    if target != 'None':
+        clf = load_model(models[model])
+        results = get_results(clf, target)
+        click.echo(':' + target)
+        click.echo('\n'.join(results))
+        return
+
+    model_names = {
+        models[0]: 'Complement Naive Bayes (bi-grams, balanced dataset)',
+        models[1]: 'Complement Naive Bayes (bi-grams)',
+        models[2]: 'Complement Naive Bayes (bag of words)',
+        models[3]: 'Multinomial Naive Bayes (bag of words)',
+    }
 
     intro = [
         'Welcome to SENTIMENT ANALYZER!',
         'Please input any sentence/passage for analysis.',
         '',
         'SPECIAL COMMANDS',
-        '----------------',
+        '-' * cols,
         'q - terminate the program',
+        '-' * cols,
         '',
-        ]
+        f'Loading {model_names[models[model]]} model...\n',
+    ]
 
-    model_name = 'Complement Naive Bayes (bag of words)'
+    intro = [string.center(cols) for string in intro]
     click.echo('\n'.join(intro))
 
-    # Loading model from joblib
-    click.echo(f'Loading {model_name} model...\n')
-
-    # Suppress warnings from sci-kit learn.
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        clf = load(models_path)
+    # Loading model using joblib
+    clf = load_model(models[model])
 
     while True:
         inp = click.prompt('')
         if inp.strip(whitespace) == 'q':
             return
-        get_results(clf, inp)
+        results = get_results(clf, inp)
+        click.echo('\n'.join(results))
 
 
 def get_results(clf, inp):
@@ -78,12 +112,45 @@ def get_results(clf, inp):
     pred = clf.predict([inp]).astype(int)[0]
     prob = clf.predict_proba([inp]).ravel()
     negative, neutral, positive = ['{:.2%}'.format(p) for p in prob]
-    click.echo('Results')
-    click.echo('-------')
-    click.echo('This passage is: ' + res[pred] + '!\n')
-    probabilities = [
+
+    results = [
+        '',
+        'Results',
+        '-------',
+        f'This passage is: {res[pred]}!',
+        '',
         f'Probability of being Negative: {negative}',
         f'Probability of being Neutral: {neutral}',
         f'Probability of being Positive: {positive}',
+        '',
     ]
-    click.echo('\n'.join(probabilities))
+
+    return results
+
+def load_model(model):
+    """
+
+    Loading model using joblib.
+
+    Params
+    ------
+
+    model - string.
+        Path to model.
+
+    Returns
+    -------
+
+    clf - python object, Pipeline
+        Read from a joblib file, should be
+        a sklearn Pipeline containing a transformer
+        that accepts raw documents and a final estimator.
+
+    """
+
+    # Suppress warnings from sci-kit learn.
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        clf = load(model)
+
+    return clf
